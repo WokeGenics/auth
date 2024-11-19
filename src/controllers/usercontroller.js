@@ -1,7 +1,7 @@
-require("dotenv").config();
-const User = require("../models/user");
-const bcrypt = require("bcrypt");
-
+import dotenv from "dotenv";
+import { User } from "../model/user.js";
+import bcrypt from "bcrypt";
+import { asynchandler } from "../asynchandler.js";
 class ApiError extends Error {
   constructor(status, message) {
     super(message);
@@ -20,24 +20,24 @@ class ApiResponse {
 const registerUser = async (req, res) => {
   try {
     const { username, fullname, email, password } = req.body;
+    // console.log(req.body);
 
-    if (!username) throw new ApiError(400, "UserName is required");
     if (!fullname) throw new ApiError(400, "FullName is required");
+    if (!username) throw new ApiError(400, "UserName is required");
     if (!email) throw new ApiError(400, "Email is required");
     if (!password) throw new ApiError(400, "Password is required");
-
     const existedUser = await User.findOne({
       $or: [{ username }, { email }],
     });
     if (existedUser)
       throw new ApiError(409, "User with email or username already exists");
 
-    const hashedPassword = await bcrypt.hash(password, 10); // Encrypt password
+    // const hashedPassword = await bcrypt.hash(password, 10); // Encrypt password
 
     const newUser = await User.create({
       fullname,
       email,
-      password: hashedPassword,
+      password,
       username,
     });
 
@@ -45,9 +45,9 @@ const registerUser = async (req, res) => {
       "-password -refreshToken"
     );
     if (!createdUser) throw new ApiError(500, "Not able to register the user");
-
+    // console.log(createdUser);
     const { accessToken, refreshToken } = await generateAccessandRefreshTokens(
-      createdUser._id
+      createdUser
     );
 
     const options = {
@@ -66,15 +66,17 @@ const registerUser = async (req, res) => {
   }
 };
 //this fun generates access and refresh token during the fresh login
-const generateAccessandRefreshTokens = async (userid) => {
+const generateAccessandRefreshTokens = async (user) => {
   try {
-    const user = await User.findById(userid);
+    if (!user) throw new ApiError(500, "Can't find user");
 
     const accessToken = await user.generateAccessTokens();
     if (!accessToken) throw new ApiError(500, "Can't generate access token");
     const refreshToken = await user.generateRefreshTokens();
+    if (!refreshToken) throw new ApiError(500, "Can't generate refresh token");
 
     user.refreshToken = refreshToken;
+    // console.log(user);
     await user.save({ validateBeforeSave: false });
 
     return { accessToken, refreshToken };
@@ -83,16 +85,9 @@ const generateAccessandRefreshTokens = async (userid) => {
   }
 };
 
-//take username and password from the frontend
-//check if username already exist in the db
-//if exists the check if the password is correct or not
-//generate access and refresh tokens
-// if all correct then return the respose in cookiesconst asynchandler = (fn) => (req, res, next) =>
-Promise.resolve(fn(req, res, next)).catch(next);
-
 const loginUser = asynchandler(async (req, res) => {
   const { email, password } = req.body;
-
+  // console.log(req.body);
   // Validate required fields
   if (!email) throw new ApiError(400, "Email is required");
   if (!password) throw new ApiError(400, "Password is required");
@@ -102,6 +97,7 @@ const loginUser = asynchandler(async (req, res) => {
 
   // Verify password
   const correctPassword = await currentUser.isPasswordCorrect(password); // Make sure this method exists
+  // console.log(correctPassword);
   if (!correctPassword) throw new ApiError(400, "Incorrect password");
 
   const { accessToken, refreshToken } = await generateAccessandRefreshTokens(
@@ -134,7 +130,7 @@ const logOutUser = asynchandler(async (req, res) => {
     req.user._id,
     {
       $set: {
-        refreshToken: null,
+        refreshToken: 1,
       },
     },
     {
@@ -152,7 +148,7 @@ const logOutUser = asynchandler(async (req, res) => {
     .status(200)
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
-    .json(new ApiResponse(200, {}, "User logged out successfully"));
+    .json(new ApiResponse(200, {}, "User LoggedOut SuccessFully"));
 });
 
 const refreshAccessToken = asynchandler(async (req, res) => {
@@ -190,9 +186,4 @@ const refreshAccessToken = asynchandler(async (req, res) => {
     );
 });
 
-module.exports = {
-  registerUser,
-  generateAccessandRefreshTokens,
-  loginUser,
-  logOutUser,
-};
+export { registerUser, loginUser, logOutUser, refreshAccessToken };

@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       unique: true,
       trim: true,
-      index: true,                            //for optimum searching
+      index: true, //for optimum searching
     },
     email: {
       type: String,
@@ -32,9 +32,10 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
-    {
+  },
+  {
     timestamps: true,
-    },
+  },
   { versionKey: false }
 );
 
@@ -52,6 +53,8 @@ userSchema.pre("save", async function (next) {
 
 //Now create a function to check if the password entered is correct or not. for that we need to create a meathod.
 userSchema.methods.isPasswordCorrect = async function (password) {
+  console.log(password);
+  console.log(this.password);
   return await bcrypt.compare(password, this.password);
 };
 
@@ -81,5 +84,4 @@ userSchema.methods.generateRefreshTokens = async function () {
   );
 };
 
-
-module.exports = mongoose.model('User', UserSchema);
+export const User = mongoose.model("User", userSchema);
